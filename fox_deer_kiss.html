@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #faf8f5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  canvas { display: block; }
+  #label {
+    margin-top: 32px;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    font-weight: 300;
+    letter-spacing: 0.18em;
+    color: #aaa;
+    text-transform: lowercase;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="label">happy 18 months</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 520, H = 320;
+canvas.width = W;
+canvas.height = H;
+
+let mouse = { x: W / 2, y: H / 2 };
+let kissing = false;
+let kissProgress = 0;
+
+const FOX_CX = 155, DEER_CX = 365, GROUND_Y = 230;
+
+const hearts = [];
+for (let i = 0; i < 22; i++) {
+  hearts.push({
+    x: Math.random() * W,
+    y: Math.random() * H - H,
+    size: 5 + Math.random() * 5,
+    speed: 0.4 + Math.random() * 0.6,
+    opacity: 0.25 + Math.random() * 0.4,
+    drift: (Math.random() - 0.5) * 0.3
+  });
+}
+
+function drawHeart(x, y, size, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#b0b0b0';
+  ctx.beginPath();
+  ctx.moveTo(x, y + size * 0.3);
+  ctx.bezierCurveTo(x, y, x - size * 0.7, y, x - size * 0.7, y + size * 0.4);
+  ctx.bezierCurveTo(x - size * 0.7, y + size * 0.8, x, y + size * 1.1, x, y + size * 1.3);
+  ctx.bezierCurveTo(x, y + size * 1.1, x + size * 0.7, y + size * 0.8, x + size * 0.7, y + size * 0.4);
+  ctx.bezierCurveTo(x + size * 0.7, y, x, y, x, y + size * 0.3);
+  ctx.fill();
+  ctx.restore();
+}
+
+function eyeAngle(cx, cy, targetX, targetY) {
+  return Math.atan2(targetY - cy, targetX - cx);
+}
+
+function drawEye(cx, cy, angle, r) {
+  ctx.save();
+  ctx.fillStyle = '#3a2a1a';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  const px = cx + Math.cos(angle) * r * 0.5;
+  const py = cy + Math.sin(angle) * r * 0.5;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(px, py, r * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawFox(kp) {
+  const cx = FOX_CX + kp * 38;
+  const cy = GROUND_Y - 60;
+
+  ctx.save();
+  // body
+  ctx.fillStyle = '#d4855a';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 28, 32, 22, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // belly
+  ctx.fillStyle = '#f5e0cc';
+  ctx.beginPath();
+  ctx.ellipse(cx + 4, cy + 34, 18, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // tail
+  ctx.fillStyle = '#d4855a';
+  ctx.beginPath();
+  ctx.moveTo(cx - 28, cy + 22);
+  ctx.bezierCurveTo(cx - 60, cy + 10, cx - 65, cy + 50, cx - 38, cy + 52);
+  ctx.bezierCurveTo(cx - 25, cy + 54, cx - 22, cy + 42, cx - 28, cy + 22);
+  ctx.fill();
+  ctx.fillStyle = '#f5e0cc';
+  ctx.beginPath();
+  ctx.ellipse(cx - 42, cy + 48, 9, 7, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // head
+  ctx.fillStyle = '#d4855a';
+  ctx.beginPath();
+  ctx.ellipse(cx + 18, cy - 4, 22, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // cheeks / muzzle
+  ctx.fillStyle = '#f5e0cc';
+  ctx.beginPath();
+  ctx.ellipse(cx + 30, cy + 6, 10, 8, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // black markings
+  ctx.fillStyle = '#3a2a1a';
+  ctx.beginPath();
+  ctx.ellipse(cx + 33, cy + 8, 3.5, 2.5, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ears
+  ctx.fillStyle = '#d4855a';
+  ctx.beginPath();
+  ctx.moveTo(cx + 8, cy - 18);
+  ctx.lineTo(cx + 2, cy - 40);
+  ctx.lineTo(cx + 20, cy - 24);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#e8a585';
+  ctx.beginPath();
+  ctx.moveTo(cx + 9, cy - 20);
+  ctx.lineTo(cx + 5, cy - 35);
+  ctx.lineTo(cx + 18, cy - 24);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#d4855a';
+  ctx.beginPath();
+  ctx.moveTo(cx + 24, cy - 16);
+  ctx.lineTo(cx + 22, cy - 38);
+  ctx.lineTo(cx + 36, cy - 18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#e8a585';
+  ctx.beginPath();
+  ctx.moveTo(cx + 25, cy - 18);
+  ctx.lineTo(cx + 24, cy - 32);
+  ctx.lineTo(cx + 33, cy - 19);
+  ctx.closePath();
+  ctx.fill();
+
+  // eye
+  const eyeCX = cx + 16, eyeCY = cy - 4;
+  const ang = kissing ? Math.PI * 0.1 : eyeAngle(eyeCX, eyeCY, mouse.x, mouse.y);
+  drawEye(eyeCX, eyeCY, ang, 4.5);
+
+  // legs
+  ctx.fillStyle = '#d4855a';
+  for (let lx of [cx - 8, cx + 12]) {
+    ctx.beginPath();
+    ctx.roundRect(lx, cy + 38, 8, 18, 4);
+    ctx.fill();
+    ctx.fillStyle = '#3a2a1a';
+    ctx.beginPath();
+    ctx.ellipse(lx + 4, cy + 56, 5, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#d4855a';
+  }
+
+  ctx.restore();
+}
+
+function drawDeer(kp) {
+  const cx = DEER_CX - kp * 38;
+  const cy = GROUND_Y - 60;
+
+  ctx.save();
+  // body
+  ctx.fillStyle = '#c8966e';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 28, 32, 22, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // belly
+  ctx.fillStyle = '#f0dcc8';
+  ctx.beginPath();
+  ctx.ellipse(cx - 4, cy + 34, 18, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // white tail spot
+  ctx.fillStyle = '#f5f0eb';
+  ctx.beginPath();
+  ctx.ellipse(cx + 28, cy + 28, 8, 10, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // head
+  ctx.fillStyle = '#c8966e';
+  ctx.beginPath();
+  ctx.ellipse(cx - 18, cy - 4, 20, 19, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // snout
+  ctx.fillStyle = '#f0dcc8';
+  ctx.beginPath();
+  ctx.ellipse(cx - 30, cy + 6, 9, 7, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // nose
+  ctx.fillStyle = '#3a2a1a';
+  ctx.beginPath();
+  ctx.ellipse(cx - 33, cy + 8, 3, 2, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // antlers
+  ctx.strokeStyle = '#8a6040';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  // left antler
+  ctx.beginPath();
+  ctx.moveTo(cx - 22, cy - 18);
+  ctx.lineTo(cx - 30, cy - 42);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - 27, cy - 32);
+  ctx.lineTo(cx - 42, cy - 38);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - 27, cy - 32);
+  ctx.lineTo(cx - 20, cy - 46);
+  ctx.stroke();
+  // right antler
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, cy - 20);
+  ctx.lineTo(cx - 6, cy - 44);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy - 34);
+  ctx.lineTo(cx + 6, cy - 40);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy - 34);
+  ctx.lineTo(cx - 14, cy - 48);
+  ctx.stroke();
+
+  // ears
+  ctx.fillStyle = '#c8966e';
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, cy - 16);
+  ctx.lineTo(cx - 2, cy - 38);
+  ctx.lineTo(cx - 24, cy - 24);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#e8c4a4';
+  ctx.beginPath();
+  ctx.moveTo(cx - 11, cy - 18);
+  ctx.lineTo(cx - 5, cy - 33);
+  ctx.lineTo(cx - 21, cy - 23);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#c8966e';
+  ctx.beginPath();
+  ctx.moveTo(cx - 28, cy - 16);
+  ctx.lineTo(cx - 46, cy - 28);
+  ctx.lineTo(cx - 30, cy - 26);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#e8c4a4';
+  ctx.beginPath();
+  ctx.moveTo(cx - 29, cy - 18);
+  ctx.lineTo(cx - 41, cy - 26);
+  ctx.lineTo(cx - 31, cy - 24);
+  ctx.closePath();
+  ctx.fill();
+
+  // eye
+  const eyeCX = cx - 16, eyeCY = cy - 4;
+  const ang = kissing ? Math.PI * 0.9 : eyeAngle(eyeCX, eyeCY, mouse.x, mouse.y);
+  drawEye(eyeCX, eyeCY, ang, 4.5);
+
+  // legs
+  ctx.fillStyle = '#c8966e';
+  for (let lx of [cx - 12, cx + 8]) {
+    ctx.beginPath();
+    ctx.roundRect(lx, cy + 38, 8, 18, 4);
+    ctx.fill();
+    ctx.fillStyle = '#3a2a1a';
+    ctx.beginPath();
+    ctx.ellipse(lx + 4, cy + 56, 5, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c8966e';
+  }
+
+  ctx.restore();
+}
+
+function drawKissMarks(kp) {
+  if (kp < 0.7) return;
+  const alpha = (kp - 0.7) / 0.3;
+  const midX = (FOX_CX + DEER_CX) / 2;
+  const midY = GROUND_Y - 110;
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.85;
+  ctx.fillStyle = '#c8a0a0';
+  ctx.font = 'bold 22px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('♡', midX, midY);
+  ctx.restore();
+}
+
+function drawGround() {
+  ctx.save();
+  ctx.fillStyle = '#e8e4de';
+  ctx.beginPath();
+  ctx.ellipse(W / 2, GROUND_Y + 10, 200, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function update() {
+  const dist = Math.abs(mouse.x - W / 2);
+  const threshold = 110;
+  const target = dist < threshold ? (1 - dist / threshold) : 0;
+  kissProgress += (target - kissProgress) * 0.08;
+  kissing = kissProgress > 0.3;
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  // hearts
+  for (let h of hearts) {
+    h.y += h.speed;
+    h.x += h.drift;
+    if (h.y > H + 20) { h.y = -20; h.x = Math.random() * W; }
+    drawHeart(h.x, h.y, h.size, h.opacity);
+  }
+
+  drawGround();
+  drawFox(kissProgress);
+  drawDeer(kissProgress);
+  drawKissMarks(kissProgress);
+
+  requestAnimationFrame(render);
+}
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - rect.left) * (W / rect.width);
+  mouse.y = (e.clientY - rect.top) * (H / rect.height);
+  update();
+});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = (e.touches[0].clientX - rect.left) * (W / rect.width);
+  mouse.y = (e.touches[0].clientY - rect.top) * (H / rect.height);
+  update();
+}, { passive: false });
+
+setInterval(update, 16);
+render();
+</script>
+</body>
+</html>
